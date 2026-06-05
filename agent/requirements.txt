@@ -33,11 +33,12 @@ joblib>=1.3.0
 # Install with `pip install ".[signal-skills]"` when running the SMC or
 # pyharmonics-backed harmonic example engines.
 
+# Data Providers
 requests>=2.31.0
 
 # Optional Data Providers
 # Install with `pip install ".[market-data]"` to enable Tushare, yfinance,
-# AKShare, and CCXT fallback loaders.
+# AKShare, and CCXT provider integrations.
 
 # REST API & SSE
 fastapi>=0.104.0
