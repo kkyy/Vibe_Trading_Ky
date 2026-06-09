@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import { Toaster } from "sonner";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { LanguageProvider } from "./hooks/useLanguage";
 import { router } from "./router";
 import "highlight.js/styles/github-dark-dimmed.min.css";
 import "./index.css";
@@ -10,7 +11,9 @@ import "./index.css";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
-      <RouterProvider router={router} />
+      <LanguageProvider>
+        <RouterProvider router={router} />
+      </LanguageProvider>
       <Toaster position="bottom-right" richColors closeButton duration={3500} />
     </ErrorBoundary>
   </StrictMode>

@@ -1,8 +1,9 @@
 ﻿import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
-import { BarChart3, Bot, Moon, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Layers, Loader2 } from "lucide-react";
+import { Activity, BarChart3, Bot, BriefcaseBusiness, Moon, Newspaper, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Layers, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDarkMode } from "@/hooks/useDarkMode";
+import { useLanguage } from "@/hooks/useLanguage";
 import { api, type SessionItem } from "@/lib/api";
 import { useAgentStore } from "@/stores/agent";
 import { ConnectionBanner } from "@/components/layout/ConnectionBanner";
@@ -11,17 +12,21 @@ import { ConnectionBanner } from "@/components/layout/ConnectionBanner";
 const APP_VERSION = "v0.1.9";
 
 const NAV = [
-  { to: "/", icon: BarChart3, label: "Home" },
-  { to: "/agent", icon: Bot, label: "Agent" },
-  { to: "/alpha-zoo", icon: Layers, label: "Alpha Zoo" },
-  { to: "/settings", icon: Settings, label: "Settings" },
-  { to: "/correlation", icon: BarChart3, label: "Correlation Matrix" },
+  { to: "/", icon: BarChart3, label: "Home - Market Overview", zhLabel: "Home-市场总览" },
+  { to: "/news", icon: Newspaper, label: "News", zhLabel: "新闻" },
+  { to: "/event-probability", icon: Activity, label: "Event Probability", zhLabel: "事件概率" },
+  { to: "/holdings", icon: BriefcaseBusiness, label: "Holdings Monitor", zhLabel: "持仓监测" },
+  { to: "/agent", icon: Bot, label: "Agent", zhLabel: "智能体" },
+  { to: "/alpha-zoo", icon: Layers, label: "Alpha Zoo", zhLabel: "Alpha 因子库" },
+  { to: "/settings", icon: Settings, label: "Settings", zhLabel: "设置" },
+  { to: "/correlation", icon: BarChart3, label: "Correlation Matrix", zhLabel: "相关矩阵" },
 ];
 
 export function Layout() {
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const { dark, toggle } = useDarkMode();
+  const { isZh, toggleLanguage } = useLanguage();
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const sseStatus = useAgentStore(s => s.sseStatus);
@@ -85,8 +90,8 @@ export function Layout() {
 
         {/* Nav */}
         <nav className={cn("space-y-0.5", collapsed ? "p-1" : "p-2")}>
-          {NAV.map(({ to, icon: Icon, label }) => {
-            const text = label;
+          {NAV.map(({ to, icon: Icon, label, zhLabel }) => {
+            const text = isZh ? zhLabel : label;
             return (
               <Link
                 key={to}
@@ -113,12 +118,12 @@ export function Layout() {
             <div className="flex items-center justify-between px-4 py-2">
               <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                 <MessageSquare className="h-3.5 w-3.5" />
-                Sessions
+                {isZh ? "会话" : "Sessions"}
               </span>
               <Link
                 to="/agent"
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                title="New Chat"
+                title={isZh ? "新建会话" : "New Chat"}
               >
                 <Plus className="h-3.5 w-3.5" />
               </Link>
@@ -132,7 +137,7 @@ export function Layout() {
                   ))}
                 </div>
               ) : sessions.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-muted-foreground/60">No sessions yet</p>
+                <p className="px-3 py-2 text-xs text-muted-foreground/60">{isZh ? "暂无会话" : "No sessions yet"}</p>
               ) : null}
               {sessions.map((s) => {
                 const isActive = s.session_id === activeSessionId;
@@ -175,22 +180,22 @@ export function Layout() {
                     )}
                     {!isRenaming && isDeleting ? (
                       <div className="absolute right-0.5 flex items-center gap-0.5">
-                        <button onClick={() => deleteSession(s.session_id)} className="p-1 text-danger hover:bg-danger/10 rounded text-[10px] font-medium">Confirm</button>
-                        <button onClick={() => setDeleteTarget(null)} className="p-1 text-muted-foreground hover:bg-muted rounded text-[10px]">Cancel</button>
+                        <button onClick={() => deleteSession(s.session_id)} className="p-1 text-danger hover:bg-danger/10 rounded text-[10px] font-medium">{isZh ? "确认" : "Confirm"}</button>
+                        <button onClick={() => setDeleteTarget(null)} className="p-1 text-muted-foreground hover:bg-muted rounded text-[10px]">{isZh ? "取消" : "Cancel"}</button>
                       </div>
                     ) : !isRenaming ? (
                       <div className="absolute right-1 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
                         <button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRenameTarget(s.session_id); setRenameValue(s.title || ""); }}
                           className="p-1 text-muted-foreground hover:text-foreground rounded"
-                          title="Rename"
+                          title={isZh ? "重命名" : "Rename"}
                         >
                           <Pencil className="h-3 w-3" />
                         </button>
                         <button
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(s.session_id); }}
                           className="p-1 text-muted-foreground hover:text-danger rounded"
-                          title="Delete?"
+                          title={isZh ? "删除？" : "Delete?"}
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>
@@ -210,10 +215,13 @@ export function Layout() {
         <div className={cn("border-t", collapsed ? "p-1 flex flex-col items-center gap-1" : "p-3 space-y-2")}>
           {collapsed ? (
             <>
-              <button onClick={toggle} className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors" title={dark ? "Light" : "Dark"}>
+              <button onClick={toggle} className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors" title={dark ? (isZh ? "浅色" : "Light") : (isZh ? "深色" : "Dark")}>
                 {dark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
               </button>
-              <button onClick={() => setCollapsed(false)} className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors" title="Expand">
+              <button onClick={toggleLanguage} className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors text-[10px] font-semibold" title={isZh ? "Switch to English" : "切换到中文"}>
+                {isZh ? "EN" : "中"}
+              </button>
+              <button onClick={() => setCollapsed(false)} className="p-1.5 text-muted-foreground hover:text-foreground rounded transition-colors" title={isZh ? "展开" : "Expand"}>
                 <ChevronsRight className="h-3.5 w-3.5" />
               </button>
             </>
@@ -225,13 +233,20 @@ export function Layout() {
                   className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {dark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                  {dark ? "Light" : "Dark"}
+                  {dark ? (isZh ? "浅色" : "Light") : (isZh ? "深色" : "Dark")}
+                </button>
+                <button
+                  onClick={toggleLanguage}
+                  className="rounded border px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  title={isZh ? "Switch to English" : "切换到中文"}
+                >
+                  {isZh ? "English" : "中文"}
                 </button>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setCollapsed(true)}
                     className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
-                    title="Collapse"
+                    title={isZh ? "收起" : "Collapse"}
                   >
                     <ChevronsLeft className="h-3.5 w-3.5" />
                   </button>

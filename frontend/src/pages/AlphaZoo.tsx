@@ -40,6 +40,7 @@ import {
 import { echarts } from "@/lib/echarts";
 import { getChartTheme } from "@/lib/chart-theme";
 import { useDarkMode } from "@/hooks/useDarkMode";
+import { useLanguage } from "@/hooks/useLanguage";
 
 /* ---------- Constants ---------- */
 
@@ -47,6 +48,7 @@ interface ZooCard {
   id: string;
   title: string;
   description: string;
+  zhDescription: string;
   approxCount: number;
   accent: string;
 }
@@ -59,6 +61,7 @@ const ZOO_CARDS: ZooCard[] = [
     title: "Qlib 158",
     description:
       "Microsoft Qlib's full 158-feature library covering momentum, volatility, volume and rolling statistical signals.",
+    zhDescription: "Microsoft Qlib 的 158 因子特征库，覆盖动量、波动率、成交量和滚动统计信号。",
     approxCount: 154,
     accent: "from-sky-500/20 to-sky-500/5",
   },
@@ -67,6 +70,7 @@ const ZOO_CARDS: ZooCard[] = [
     title: "Kakushadze 101 Formulaic Alphas",
     description:
       "The 101 formulaic alphas from Kakushadze (2015); short-horizon cross-sectional signals.",
+    zhDescription: "Kakushadze 2015 年的 101 个公式化 Alpha，偏短周期横截面信号。",
     approxCount: 101,
     accent: "from-emerald-500/20 to-emerald-500/5",
   },
@@ -75,6 +79,7 @@ const ZOO_CARDS: ZooCard[] = [
     title: "GTJA 191",
     description:
       "Guotai Junan Securities' 191 alphas; technical and microstructure signals tuned to China A-share markets.",
+    zhDescription: "国泰君安 191 个 Alpha，面向中国 A 股市场的技术与微观结构信号。",
     approxCount: 191,
     accent: "from-amber-500/20 to-amber-500/5",
   },
@@ -83,6 +88,7 @@ const ZOO_CARDS: ZooCard[] = [
     title: "Academic Anomalies",
     description:
       "Curated long-horizon anomalies from the academic literature (value, momentum, quality, low-vol, etc.).",
+    zhDescription: "来自学术文献的长期异常因子合集，包括价值、动量、质量、低波等。",
     approxCount: 6,
     accent: "from-violet-500/20 to-violet-500/5",
   },
@@ -133,6 +139,7 @@ export function AlphaZoo() {
 /* ---------- Browse view ---------- */
 
 function BrowseView() {
+  const { isZh } = useLanguage();
   const [alphas, setAlphas] = useState<AlphaSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [zooFilter, setZooFilter] = useState<string>("");
@@ -211,16 +218,17 @@ function BrowseView() {
       {/* Hero */}
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
-          <Layers className="h-3.5 w-3.5" aria-hidden="true" /> Alpha Zoo
+          <Layers className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "Alpha 因子库" : "Alpha Zoo"}
         </div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-          {total > 0 ? total : 452} pre-built quant alphas across 4 zoos
+          {isZh
+            ? `${total > 0 ? total : 452} 个预置量化 Alpha，覆盖 4 个因子库`
+            : `${total > 0 ? total : 452} pre-built quant alphas across 4 zoos`}
         </h1>
         <p className="text-sm text-muted-foreground max-w-2xl">
-          Browse formula-driven cross-sectional signals from Qlib, the
-          Kakushadze 101 set, GTJA 191, and the academic anomaly literature.
-          Click any alpha to read its formula and source code, or run a bench
-          to score the whole zoo on a universe and period.
+          {isZh
+            ? "浏览来自 Qlib、Kakushadze 101、GTJA 191 和学术异常文献的公式化横截面信号。点击任意 Alpha 可查看公式和源码，也可以运行基准测试或进行因子对比。"
+            : "Browse formula-driven cross-sectional signals from Qlib, the Kakushadze 101 set, GTJA 191, and the academic anomaly literature. Click any alpha to read its formula and source code, or run a bench to score the whole zoo on a universe and period."}
         </p>
       </div>
 
@@ -248,7 +256,7 @@ function BrowseView() {
               </div>
               <h3 className="font-semibold text-sm leading-tight">{z.title}</h3>
               <p className="text-xs text-muted-foreground line-clamp-3">
-                {z.description}
+                {isZh ? z.zhDescription : z.description}
               </p>
             </button>
           );
@@ -259,7 +267,7 @@ function BrowseView() {
       <div className="flex flex-col md:flex-row md:items-end gap-3 border rounded-xl p-4 bg-card">
         <div className="flex-1 min-w-0">
           <label htmlFor="alpha-search" className="text-xs text-muted-foreground block mb-1">
-            Search
+            {isZh ? "搜索" : "Search"}
           </label>
           <div className="relative">
             <Search
@@ -279,7 +287,7 @@ function BrowseView() {
           </div>
         </div>
         <div className="md:w-40">
-          <label htmlFor="alpha-zoo-filter" className="text-xs text-muted-foreground block mb-1">Zoo</label>
+          <label htmlFor="alpha-zoo-filter" className="text-xs text-muted-foreground block mb-1">{isZh ? "因子库" : "Zoo"}</label>
           <select
             id="alpha-zoo-filter"
             value={zooFilter}
@@ -296,7 +304,7 @@ function BrowseView() {
         </div>
         <div className="md:w-40">
           <label htmlFor="alpha-theme-filter" className="text-xs text-muted-foreground block mb-1">
-            Theme
+            {isZh ? "主题" : "Theme"}
           </label>
           <select
             id="alpha-theme-filter"
@@ -314,7 +322,7 @@ function BrowseView() {
         </div>
         <div className="md:w-44">
           <label htmlFor="alpha-universe-filter" className="text-xs text-muted-foreground block mb-1">
-            Universe
+            {isZh ? "股票池" : "Universe"}
           </label>
           <select
             id="alpha-universe-filter"
@@ -335,14 +343,14 @@ function BrowseView() {
           className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted hover:text-foreground transition"
           title="Tick 2+ alphas below, then compare them head-to-head"
         >
-          <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" /> Compare
+          <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "对比" : "Compare"}
           {selected.size >= 2 ? ` (${selected.size})` : ""}
         </Link>
         <Link
           to="/alpha-zoo/bench"
           className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
         >
-          <Play className="h-3.5 w-3.5" aria-hidden="true" /> Run benchmark
+          <Play className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "运行基准测试" : "Run benchmark"}
         </Link>
       </div>
 
@@ -361,13 +369,13 @@ function BrowseView() {
                   ID
                 </th>
                 <th className="text-left px-4 py-2.5 text-muted-foreground">
-                  Zoo
+                  {isZh ? "因子库" : "Zoo"}
                 </th>
                 <th className="text-left px-4 py-2.5 text-muted-foreground">
-                  Theme
+                  {isZh ? "主题" : "Theme"}
                 </th>
                 <th className="text-left px-4 py-2.5 text-muted-foreground hidden md:table-cell">
-                  Universe
+                  {isZh ? "股票池" : "Universe"}
                 </th>
                 <th className="text-right px-4 py-2.5 text-muted-foreground" title="Predictive half-life: trading days before the signal's edge decays">
                   Decay (days)
@@ -385,7 +393,7 @@ function BrowseView() {
               ) : visible.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    No alphas match the current filters.
+                    {isZh ? "当前筛选条件下没有匹配的 Alpha。" : "No alphas match the current filters."}
                   </td>
                 </tr>
               ) : (
@@ -438,14 +446,14 @@ function BrowseView() {
         {!loading && visible.length < filtered.length && (
           <div className="border-t p-3 flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              Showing {visible.length} of {filtered.length}
+              {isZh ? `显示 ${visible.length} / ${filtered.length}` : `Showing ${visible.length} of ${filtered.length}`}
             </span>
             <button
               type="button"
               onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
               className="px-3 py-1 rounded-md border hover:bg-muted hover:text-foreground transition"
             >
-              Load more
+              {isZh ? "加载更多" : "Load more"}
             </button>
           </div>
         )}
@@ -461,6 +469,7 @@ interface DetailProps {
 }
 
 function DetailView({ alphaId }: DetailProps) {
+  const { isZh } = useLanguage();
   const [detail, setDetail] = useState<AlphaDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -500,11 +509,11 @@ function DetailView({ alphaId }: DetailProps) {
     return (
       <div className="p-8 max-w-3xl mx-auto space-y-4">
         <Link to="/alpha-zoo" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to Alpha Zoo
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "返回 Alpha 因子库" : "Back to Alpha Zoo"}
         </Link>
         <div className="border rounded-xl p-6 bg-card">
           <h2 className="font-semibold text-sm mb-1 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" /> Could not load alpha
+            <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" /> {isZh ? "无法加载 Alpha" : "Could not load alpha"}
           </h2>
           <p className="text-sm text-muted-foreground">{error || "Unknown error"}</p>
         </div>
@@ -531,14 +540,14 @@ function DetailView({ alphaId }: DetailProps) {
           to="/alpha-zoo"
           className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
         >
-          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to Alpha Zoo
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "返回 Alpha 因子库" : "Back to Alpha Zoo"}
         </Link>
         <button
           type="button"
           onClick={() => navigate(benchHref)}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition"
         >
-          <Play className="h-3.5 w-3.5" aria-hidden="true" /> Run benchmark
+          <Play className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "运行基准测试" : "Run benchmark"}
         </button>
       </div>
 
@@ -559,7 +568,7 @@ function DetailView({ alphaId }: DetailProps) {
 
       {/* Formula */}
       <section className="space-y-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Formula</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">{isZh ? "公式" : "Formula"}</h2>
         <pre className="border rounded-xl bg-muted/30 p-4 overflow-x-auto text-xs leading-relaxed">
           <code>{formulaLatex || "(no formula provided)"}</code>
         </pre>
@@ -567,12 +576,12 @@ function DetailView({ alphaId }: DetailProps) {
 
       {/* Metadata */}
       <section className="space-y-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Metadata</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">{isZh ? "元数据" : "Metadata"}</h2>
         <div className="border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <tbody>
-              <MetaRow label="Theme" value={metaString(meta, "theme")} />
-              <MetaRow label="Universe" value={metaString(meta, "universe")} />
+              <MetaRow label={isZh ? "主题" : "Theme"} value={metaString(meta, "theme")} />
+              <MetaRow label={isZh ? "股票池" : "Universe"} value={metaString(meta, "universe")} />
               <MetaRow label="Frequency" value={metaString(meta, "frequency")} />
               <MetaRow label="Decay horizon" value={metaString(meta, "decay_horizon")} />
               <MetaRow label="Min warm-up bars" value={metaString(meta, "min_warmup_bars")} />
@@ -586,7 +595,7 @@ function DetailView({ alphaId }: DetailProps) {
 
       {/* Source code */}
       <section className="space-y-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Source code</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">{isZh ? "源码" : "Source code"}</h2>
         <details className="border rounded-xl bg-card group">
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium hover:bg-muted/40 select-none">
             View source ({(detail.source_code || "").split("\n").length} lines)
@@ -620,6 +629,7 @@ interface BenchProgress {
 }
 
 function BenchView() {
+  const { isZh } = useLanguage();
   // Read prefill from query string (set by Detail "Run bench" button).
   const { search: locSearch } = useLocation();
   const initial = useMemo(() => {
@@ -752,19 +762,20 @@ function BenchView() {
         to="/alpha-zoo"
         className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
       >
-        <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to Alpha Zoo
+        <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "返回 Alpha 因子库" : "Back to Alpha Zoo"}
       </Link>
 
       <div className="space-y-1">
         <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
-          <Play className="h-3.5 w-3.5" aria-hidden="true" /> Benchmark runner
+          <Play className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "基准测试运行器" : "Benchmark runner"}
         </div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-          Score a zoo on a universe
+          {isZh ? "在指定股票池上评估因子库" : "Score a zoo on a universe"}
         </h1>
         <p className="text-sm text-muted-foreground max-w-2xl">
-          Computes IC / IR for every alpha in the selected zoo over the chosen
-          universe and period, then bucketizes them as alive / reversed / dead.
+          {isZh
+            ? "计算所选因子库中每个 Alpha 在指定股票池和周期内的 IC / IR，并将结果分类为有效、反向或失效。"
+            : "Computes IC / IR for every alpha in the selected zoo over the chosen universe and period, then bucketizes them as alive / reversed / dead."}
         </p>
       </div>
 
@@ -774,7 +785,7 @@ function BenchView() {
         className="border rounded-xl p-4 bg-card grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end"
       >
         <div>
-          <label htmlFor="bench-zoo" className="text-xs text-muted-foreground block mb-1">Zoo</label>
+          <label htmlFor="bench-zoo" className="text-xs text-muted-foreground block mb-1">{isZh ? "因子库" : "Zoo"}</label>
           <select
             id="bench-zoo"
             value={zoo}
@@ -790,7 +801,7 @@ function BenchView() {
           </select>
         </div>
         <div>
-          <label htmlFor="bench-universe" className="text-xs text-muted-foreground block mb-1">Universe</label>
+          <label htmlFor="bench-universe" className="text-xs text-muted-foreground block mb-1">{isZh ? "股票池" : "Universe"}</label>
           <select
             id="bench-universe"
             value={universe}
@@ -845,7 +856,7 @@ function BenchView() {
               </>
             ) : (
               <>
-                <Play className="h-3.5 w-3.5" aria-hidden="true" /> Run benchmark
+                <Play className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "运行基准测试" : "Run benchmark"}
               </>
             )}
           </button>
@@ -1096,6 +1107,7 @@ function parseAlphaIds(text: string): string[] {
  * the BrowseView multi-select — and remain editable as free text.
  */
 function CompareView() {
+  const { isZh } = useLanguage();
   const { search: locSearch } = useLocation();
   const initialIds = useMemo(() => {
     const q = new URLSearchParams(locSearch);
@@ -1209,15 +1221,15 @@ function CompareView() {
         to="/alpha-zoo"
         className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
       >
-        <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to Alpha Zoo
+        <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "返回 Alpha 因子库" : "Back to Alpha Zoo"}
       </Link>
 
       <div className="space-y-1">
         <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
-          <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" /> Head-to-head compare
+          <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "逐项对比" : "Head-to-head compare"}
         </div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-          Compare alphas side by side
+          {isZh ? "并排对比 Alpha" : "Compare alphas side by side"}
         </h1>
         <p className="text-sm text-muted-foreground max-w-2xl">
           Benches just the alphas you pick on a universe and period, then ranks
@@ -1248,7 +1260,7 @@ function CompareView() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label htmlFor="compare-universe" className="text-xs text-muted-foreground block mb-1">Universe</label>
+            <label htmlFor="compare-universe" className="text-xs text-muted-foreground block mb-1">{isZh ? "股票池" : "Universe"}</label>
             <select
               id="compare-universe"
               value={universe}
@@ -1264,7 +1276,7 @@ function CompareView() {
             </select>
           </div>
           <div>
-            <label htmlFor="compare-period" className="text-xs text-muted-foreground block mb-1">Period</label>
+            <label htmlFor="compare-period" className="text-xs text-muted-foreground block mb-1">{isZh ? "周期" : "Period"}</label>
             <input
               id="compare-period"
               value={period}
@@ -1275,7 +1287,7 @@ function CompareView() {
             />
           </div>
           <div>
-            <label htmlFor="compare-sort" className="text-xs text-muted-foreground block mb-1">Rank by</label>
+            <label htmlFor="compare-sort" className="text-xs text-muted-foreground block mb-1">{isZh ? "排序依据" : "Rank by"}</label>
             <select
               id="compare-sort"
               value={sort}
@@ -1304,7 +1316,7 @@ function CompareView() {
               </>
             ) : (
               <>
-                <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" /> Compare
+                <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" /> {isZh ? "对比" : "Compare"}
               </>
             )}
           </button>
