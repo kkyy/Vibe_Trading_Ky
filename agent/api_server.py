@@ -142,6 +142,17 @@ class HealthResponse(BaseModel):
     timestamp: str = Field(..., description="Server timestamp")
 
 
+class AStockBundleResponse(BaseModel):
+    """A-share public data bundle from the a-stock-data adapter."""
+
+    code: str
+    quote: Dict[str, Any] = Field(default_factory=dict)
+    basic: Dict[str, Any] = Field(default_factory=dict)
+    reports: List[Dict[str, Any]] = Field(default_factory=list)
+    news: List[Dict[str, Any]] = Field(default_factory=list)
+    announcements: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 class LLMProviderOption(BaseModel):
     """Supported LLM provider metadata for the settings UI."""
 
@@ -1457,6 +1468,129 @@ async def health_check():
         service="Vibe-Trading API",
         timestamp=datetime.now().isoformat()
     )
+
+
+@app.get("/a-stock-data/quote", dependencies=[Depends(require_local_or_auth)])
+async def get_a_stock_quote(
+    codes: str = Query(..., description="Comma-separated A-share codes, e.g. 600519,000001"),
+):
+    """Fetch A-share real-time quote data via the a-stock-data Tencent adapter."""
+    from src.data.a_stock_data import tencent_quote
+
+    code_list = [item.strip() for item in codes.split(",") if item.strip()]
+    if not code_list:
+        raise HTTPException(status_code=400, detail="At least one code is required")
+    try:
+        return {"quotes": tencent_quote(code_list)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"A-stock quote fetch failed: {exc}") from exc
+
+
+@app.get("/a-stock-data/basic/{code}", dependencies=[Depends(require_local_or_auth)])
+async def get_a_stock_basic(code: str):
+    """Fetch A-share basic company data via the a-stock-data Eastmoney adapter."""
+    from src.data.a_stock_data import eastmoney_stock_info
+
+    try:
+        return eastmoney_stock_info(code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"A-stock basic fetch failed: {exc}") from exc
+
+
+@app.get("/a-stock-data/reports/{code}", dependencies=[Depends(require_local_or_auth)])
+async def get_a_stock_reports(
+    code: str,
+    max_pages: int = Query(1, ge=1, le=5),
+):
+    """Fetch A-share research reports via the a-stock-data Eastmoney report API adapter."""
+    from src.data.a_stock_data import eastmoney_reports
+
+    try:
+        return {"code": code, "reports": eastmoney_reports(code, max_pages=max_pages)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"A-stock reports fetch failed: {exc}") from exc
+
+
+@app.get("/a-stock-data/news/{code}", dependencies=[Depends(require_local_or_auth)])
+async def get_a_stock_news(
+    code: str,
+    page_size: int = Query(10, ge=1, le=50),
+):
+    """Fetch A-share stock news, falling back to Eastmoney 7x24 news when stock search is empty."""
+    from src.data.a_stock_data import eastmoney_stock_news
+
+    try:
+        return {"code": code, "news": eastmoney_stock_news(code, page_size=page_size)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"A-stock news fetch failed: {exc}") from exc
+
+
+@app.get("/a-stock-data/global-news", dependencies=[Depends(require_local_or_auth)])
+async def get_a_stock_global_news(
+    page_size: int = Query(20, ge=1, le=50),
+):
+    """Fetch Eastmoney 7x24 global market news via the a-stock-data adapter."""
+    from src.data.a_stock_data import eastmoney_global_news
+
+    try:
+        return {"news": eastmoney_global_news(page_size=page_size)}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"A-stock global news fetch failed: {exc}") from exc
+
+
+@app.get("/a-stock-data/announcements/{code}", dependencies=[Depends(require_local_or_auth)])
+async def get_a_stock_announcements(
+    code: str,
+    page_size: int = Query(10, ge=1, le=50),
+):
+    """Fetch A-share announcements via the a-stock-data CNInfo adapter."""
+    from src.data.a_stock_data import cninfo_announcements
+
+    try:
+        return {"code": code, "announcements": cninfo_announcements(code, page_size=page_size)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"A-stock announcements fetch failed: {exc}") from exc
+
+
+@app.get("/a-stock-data/bundle/{code}", response_model=AStockBundleResponse, dependencies=[Depends(require_local_or_auth)])
+async def get_a_stock_bundle(code: str):
+    """Fetch quote, basic data, reports, news, and announcements for one A-share code."""
+    from src.data.a_stock_data import stock_bundle
+
+    try:
+        return stock_bundle(code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"A-stock bundle fetch failed: {exc}") from exc
+
+
+@app.get("/yfinance/quote", dependencies=[Depends(require_local_or_auth)])
+async def get_yfinance_quote(
+    symbols: str = Query(..., description="Comma-separated Yahoo Finance symbols, e.g. AAPL,MSFT,^GSPC"),
+):
+    """Fetch US/global quote snapshots through the project's yfinance dependency."""
+    from src.data.yfinance_quotes import yfinance_quotes
+
+    symbol_list = [item.strip() for item in symbols.split(",") if item.strip()]
+    if not symbol_list:
+        raise HTTPException(status_code=400, detail="At least one symbol is required")
+    try:
+        return {"quotes": yfinance_quotes(symbol_list)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"yfinance quote fetch failed: {exc}") from exc
 
 
 @app.get("/correlation")

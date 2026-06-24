@@ -137,6 +137,22 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(settings),
     }),
+  getAStockQuote: (codes: string[]) =>
+    request<AStockQuoteResponse>(`/a-stock-data/quote?codes=${encodeURIComponent(codes.join(","))}`),
+  getAStockBasic: (code: string) =>
+    request<AStockBasic>(`/a-stock-data/basic/${encodeURIComponent(code)}`),
+  getAStockReports: (code: string, maxPages = 1) =>
+    request<AStockReportsResponse>(`/a-stock-data/reports/${encodeURIComponent(code)}?max_pages=${maxPages}`),
+  getAStockNews: (code: string, pageSize = 10) =>
+    request<AStockNewsResponse>(`/a-stock-data/news/${encodeURIComponent(code)}?page_size=${pageSize}`),
+  getAStockGlobalNews: (pageSize = 20) =>
+    request<AStockGlobalNewsResponse>(`/a-stock-data/global-news?page_size=${pageSize}`),
+  getAStockAnnouncements: (code: string, pageSize = 10) =>
+    request<AStockAnnouncementsResponse>(`/a-stock-data/announcements/${encodeURIComponent(code)}?page_size=${pageSize}`),
+  getAStockBundle: (code: string) =>
+    request<AStockBundle>(`/a-stock-data/bundle/${encodeURIComponent(code)}`),
+  getYFinanceQuote: (symbols: string[]) =>
+    request<YFinanceQuoteResponse>(`/yfinance/quote?symbols=${encodeURIComponent(symbols.join(","))}`),
 
   // Alpha Zoo API
   listAlphas: (params: AlphaListParams = {}) => {
@@ -270,6 +286,100 @@ export interface DataSourceSettings {
 export interface UpdateDataSourceSettingsRequest {
   tushare_token?: string;
   clear_tushare_token?: boolean;
+}
+
+export interface AStockQuote {
+  code: string;
+  market: string;
+  name: string;
+  price: number;
+  last_close: number;
+  open: number;
+  change_amt: number;
+  change_pct: number;
+  high: number;
+  low: number;
+  amount_wan: number;
+  turnover_pct: number;
+  pe_ttm: number;
+  amplitude_pct: number;
+  mcap_yi: number;
+  float_mcap_yi: number;
+  pb: number;
+  limit_up: number;
+  limit_down: number;
+  vol_ratio: number;
+  pe_static: number;
+}
+
+export interface AStockQuoteResponse {
+  quotes: Record<string, AStockQuote>;
+}
+
+export interface AStockBasic {
+  code: string;
+  name: string;
+  industry: string;
+  total_shares: number;
+  float_shares: number;
+  mcap: number;
+  float_mcap: number;
+  list_date: string;
+  price: number;
+}
+
+export interface AStockArticle {
+  title: string;
+  content?: string;
+  time?: string;
+  source?: string;
+  url?: string;
+  [key: string]: unknown;
+}
+
+export interface AStockReportsResponse {
+  code: string;
+  reports: AStockArticle[];
+}
+
+export interface AStockNewsResponse {
+  code: string;
+  news: AStockArticle[];
+}
+
+export interface AStockGlobalNewsResponse {
+  news: AStockArticle[];
+}
+
+export interface AStockAnnouncementsResponse {
+  code: string;
+  announcements: AStockArticle[];
+}
+
+export interface AStockBundle {
+  code: string;
+  quote: AStockQuote | Record<string, never>;
+  basic: AStockBasic | Record<string, never>;
+  reports: AStockArticle[];
+  news: AStockArticle[];
+  announcements: AStockArticle[];
+}
+
+export interface YFinanceQuote {
+  symbol: string;
+  name: string;
+  price: number;
+  previous_close: number;
+  change: number;
+  change_pct: number;
+  currency: string;
+  pe_ttm: number;
+  market_cap_yi: number;
+  market_time: string;
+}
+
+export interface YFinanceQuoteResponse {
+  quotes: Record<string, YFinanceQuote>;
 }
 
 // --- Types matching backend API contracts ---

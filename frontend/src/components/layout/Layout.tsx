@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom";
-import { Activity, BarChart3, Bot, BriefcaseBusiness, Moon, Newspaper, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Layers, Loader2 } from "lucide-react";
+import { Activity, BarChart3, Bot, Moon, Newspaper, Sun, Plus, Trash2, Pencil, MessageSquare, ChevronsLeft, ChevronsRight, Settings, Layers, Loader2, WalletCards } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -15,7 +15,7 @@ const NAV = [
   { to: "/", icon: BarChart3, label: "Home - Market Overview", zhLabel: "Home-市场总览" },
   { to: "/news", icon: Newspaper, label: "News", zhLabel: "新闻" },
   { to: "/event-probability", icon: Activity, label: "Event Probability", zhLabel: "事件概率" },
-  { to: "/holdings", icon: BriefcaseBusiness, label: "Holdings Monitor", zhLabel: "持仓监测" },
+  { to: "/holdings", icon: WalletCards, label: "Holdings Monitor", zhLabel: "持仓监测" },
   { to: "/agent", icon: Bot, label: "Agent", zhLabel: "智能体" },
   { to: "/alpha-zoo", icon: Layers, label: "Alpha Zoo", zhLabel: "Alpha 因子库" },
   { to: "/settings", icon: Settings, label: "Settings", zhLabel: "设置" },

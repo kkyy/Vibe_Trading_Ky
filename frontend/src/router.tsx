@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ComponentType } from "react";
-import { createBrowserRouter } from "react-router-dom";
+import { Navigate, createBrowserRouter } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -26,6 +26,9 @@ const ModulePlaceholder = lazy(() =>
 const EventProbability = lazy(() =>
   import("@/pages/EventProbability").then((m) => ({ default: m.EventProbability })),
 );
+const FundBaby = lazy(() =>
+  import("@/pages/FundBaby").then((m) => ({ default: m.FundBaby })),
+);
 
 function PageLoader() {
   const { isZh } = useLanguage();
@@ -51,7 +54,8 @@ export const router = createBrowserRouter([
       { path: "/", element: wrap(Home) },
       { path: "/news", element: wrap(() => <ModulePlaceholder kind="news" />) },
       { path: "/event-probability", element: wrap(EventProbability) },
-      { path: "/holdings", element: wrap(() => <ModulePlaceholder kind="holdings" />) },
+      { path: "/holdings", element: wrap(FundBaby) },
+      { path: "/fund-baby", element: <Navigate to="/holdings" replace /> },
       { path: "/agent", element: wrap(Agent) },
       { path: "/settings", element: wrap(Settings) },
       { path: "/runs/:runId", element: wrap(RunDetail) },
