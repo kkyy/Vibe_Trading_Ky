@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote as url_quote
 
 import requests
-import yfinance as yf
+
+NASDAQ_TIMEOUT_SECONDS = 1
+NASDAQ_FALLBACK_BUDGET_SECONDS = 3
+YAHOO_CHART_TIMEOUT_SECONDS = 4
+YAHOO_CHART_BUDGET_SECONDS = 6
+HTTP_HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
 
 DISPLAY_NAMES = {
     "^IXIC": "NASDAQ Composite Index",
@@ -50,8 +56,8 @@ def _nasdaq_summary(symbol: str, asset_class: str) -> dict[str, Any]:
         response = requests.get(
             f"https://api.nasdaq.com/api/quote/{symbol}/summary",
             params={"assetclass": asset_class},
-            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-            timeout=10,
+            headers=HTTP_HEADERS,
+            timeout=NASDAQ_TIMEOUT_SECONDS,
         )
         return response.json().get("data") or {}
     except Exception:
@@ -71,13 +77,16 @@ def _nasdaq_quote(symbol: str) -> dict[str, Any] | None:
     if not mapped:
         return None
     nasdaq_symbol, asset_class = mapped
-    response = requests.get(
-        f"https://api.nasdaq.com/api/quote/{nasdaq_symbol}/info",
-        params={"assetclass": asset_class},
-        headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
-        timeout=10,
-    )
-    data = response.json().get("data") or {}
+    try:
+        response = requests.get(
+            f"https://api.nasdaq.com/api/quote/{nasdaq_symbol}/info",
+            params={"assetclass": asset_class},
+            headers=HTTP_HEADERS,
+            timeout=NASDAQ_TIMEOUT_SECONDS,
+        )
+        data = response.json().get("data") or {}
+    except Exception:
+        return None
     primary = data.get("primaryData") or {}
     summary = _nasdaq_summary(nasdaq_symbol, asset_class).get("summaryData") or {}
     price = _parse_nasdaq_number(primary.get("lastSalePrice"))
@@ -122,6 +131,8 @@ def _download_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
         return {}
     result: dict[str, dict[str, Any]] = {}
     try:
+        import yfinance as yf
+
         frame = yf.download(symbols, period="5d", interval="1d", auto_adjust=False, progress=False, threads=False, timeout=4)
     except Exception:
         return result
@@ -150,25 +161,120 @@ def _download_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _last_two(values: list[Any]) -> tuple[float, float]:
+    numbers = [_to_float(value) for value in values if _to_float(value)]
+    if not numbers:
+        return 0.0, 0.0
+    current = numbers[-1]
+    previous = numbers[-2] if len(numbers) >= 2 else current
+    return current, previous
+
+
+def _chart_quote(symbol: str) -> dict[str, Any] | None:
+    try:
+        response = requests.get(
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{url_quote(symbol, safe='')}",
+            params={"range": "5d", "interval": "1d"},
+            headers=HTTP_HEADERS,
+            timeout=YAHOO_CHART_TIMEOUT_SECONDS,
+        )
+        payload = response.json()
+        result = (payload.get("chart") or {}).get("result") or []
+        if not result:
+            return None
+        data = result[0]
+        meta = data.get("meta") or {}
+        quote_rows = ((data.get("indicators") or {}).get("quote") or [{}])[0]
+        closes = quote_rows.get("close") or []
+        close_price, previous = _last_two(closes)
+        price = _to_float(meta.get("regularMarketPrice")) or close_price
+        previous = previous or _to_float(meta.get("chartPreviousClose")) or price
+        if not price:
+            return None
+        market_time = meta.get("regularMarketTime")
+        timestamp = (
+            datetime.fromtimestamp(market_time).isoformat(timespec="seconds")
+            if market_time
+            else datetime.now().isoformat(timespec="seconds")
+        )
+        return _quote_from_prices(
+            symbol,
+            price,
+            previous,
+            {
+                "shortName": meta.get("shortName"),
+                "longName": meta.get("longName"),
+                "currency": meta.get("currency") or "USD",
+                "marketCap": meta.get("marketCap"),
+            },
+        ) | {"market_time": timestamp}
+    except Exception:
+        return None
+
+
+def _chart_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
+    if not symbols:
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    executor = ThreadPoolExecutor(max_workers=min(5, len(symbols)))
+    future_to_symbol = {executor.submit(_chart_quote, symbol): symbol for symbol in symbols}
+    try:
+        for future in as_completed(future_to_symbol, timeout=YAHOO_CHART_BUDGET_SECONDS):
+            symbol = future_to_symbol[future]
+            try:
+                quote = future.result()
+            except Exception:
+                quote = None
+            if quote:
+                result[symbol] = quote
+    except TimeoutError:
+        pass
+    finally:
+        for future in future_to_symbol:
+            future.cancel()
+        executor.shutdown(wait=False, cancel_futures=True)
+    return result
+
+
+def _fallback_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
+    if not symbols:
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    executor = ThreadPoolExecutor(max_workers=min(5, len(symbols)))
+    future_to_symbol = {executor.submit(_nasdaq_quote, symbol): symbol for symbol in symbols}
+    try:
+        for future in as_completed(future_to_symbol, timeout=NASDAQ_FALLBACK_BUDGET_SECONDS):
+            symbol = future_to_symbol[future]
+            try:
+                quote = future.result()
+            except Exception:
+                quote = None
+            if quote:
+                result[symbol] = quote
+    except TimeoutError:
+        pass
+    finally:
+        for future in future_to_symbol:
+            future.cancel()
+        executor.shutdown(wait=False, cancel_futures=True)
+    return result
+
+
 def yfinance_quotes(symbols: list[str]) -> dict[str, dict[str, Any]]:
     normalized = [_normalize_symbol(symbol) for symbol in symbols]
-    result: dict[str, dict[str, Any]] = {}
+    result: dict[str, dict[str, Any]] = _chart_quotes(normalized)
+    missing = [symbol for symbol in normalized if symbol not in result]
+    if not missing:
+        return result
+
     executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(_download_quotes, normalized)
+    future = executor.submit(_download_quotes, missing)
     try:
-        result = future.result(timeout=5)
+        result.update(future.result(timeout=5))
     except TimeoutError:
-        result = {}
+        pass
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
-    for symbol in normalized:
-        if symbol in result:
-            fallback = _nasdaq_quote(symbol)
-            if fallback:
-                result[symbol]["name"] = fallback.get("name") or result[symbol]["name"]
-                result[symbol]["market_cap_yi"] = fallback.get("market_cap_yi", result[symbol].get("market_cap_yi", 0.0))
-            continue
-        fallback = _nasdaq_quote(symbol)
-        if fallback:
-            result[symbol] = fallback
+    missing = [symbol for symbol in normalized if symbol not in result]
+    result.update(_fallback_quotes(missing))
     return result

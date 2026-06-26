@@ -1586,7 +1586,10 @@ async def get_yfinance_quote(
     if not symbol_list:
         raise HTTPException(status_code=400, detail="At least one symbol is required")
     try:
-        return {"quotes": yfinance_quotes(symbol_list)}
+        quotes = await asyncio.wait_for(asyncio.to_thread(yfinance_quotes, symbol_list), timeout=12)
+        return {"quotes": quotes}
+    except asyncio.TimeoutError:
+        return {"quotes": {}}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
