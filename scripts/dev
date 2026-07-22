@@ -31,7 +31,7 @@ Commands:
   stop               Stop dev servers started by this script
   restart [service]  Restart backend, frontend, or all services
   status             Show process status and URLs
-  logs [service]     Tail logs for backend, frontend, or all
+  logs [service]     Tail logs for backend, frontend, menubar, or all
   open               Open the frontend in the default browser
   urls               Print local dev URLs
 
@@ -181,9 +181,32 @@ start_frontend() {
   ' bash "$ROOT/frontend" "$FRONTEND_HOST" "$FRONTEND_PORT" "$BACKEND_PORT"
 }
 
+menubar_supported() {
+  [[ "$(uname -s)" == "Darwin" ]] && "$PYTHON_BIN" -c 'import rumps' >/dev/null 2>&1
+}
+
+start_menubar() {
+  if [[ "${VIBE_ENABLE_MENUBAR:-1}" != "1" ]]; then
+    printf "menubar disabled by VIBE_ENABLE_MENUBAR\n"
+    return
+  fi
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    return
+  fi
+  if ! menubar_supported; then
+    printf "menubar skipped: install with %s -m pip install -r tools/requirements-menubar.txt\n" "$PYTHON_BIN"
+    return
+  fi
+  start_service menubar env \
+    VIBE_HOLDINGS_SNAPSHOT_URL="http://127.0.0.1:$BACKEND_PORT/holdings/snapshot" \
+    VIBE_FRONTEND_URL="http://127.0.0.1:$FRONTEND_PORT/fund-baby" \
+    "$PYTHON_BIN" "$ROOT/tools/macos_holdings_menubar.py"
+}
+
 cmd_up() {
   start_backend
   start_frontend
+  start_menubar
   if ! wait_for_url backend "$(service_url backend)" 30 || \
      ! wait_for_url frontend "$(service_url frontend)" 30; then
     cmd_stop
@@ -193,6 +216,7 @@ cmd_up() {
 }
 
 cmd_stop() {
+  stop_service menubar
   stop_service frontend
   stop_service backend
 }
@@ -210,6 +234,10 @@ cmd_restart() {
       start_frontend
       wait_for_url frontend "$(service_url frontend)" 30
       ;;
+    menubar)
+      stop_service menubar
+      start_menubar
+      ;;
     all)
       cmd_stop
       cmd_up
@@ -222,9 +250,11 @@ cmd_restart() {
 }
 
 cmd_status() {
-  for service in backend frontend; do
+  for service in backend frontend menubar; do
     if is_running "$service"; then
       printf "%-8s running pid=%s log=%s\n" "$service" "$(cat "$(pid_file "$service")")" "$(log_file "$service")"
+    elif [[ "$service" == "menubar" ]]; then
+      printf "%-8s stopped\n" "$service"
     elif url_ok "$(service_url "$service")"; then
       printf "%-8s reachable external url=%s\n" "$service" "$(service_url "$service")"
     else
@@ -237,13 +267,13 @@ cmd_status() {
 cmd_logs() {
   local service="${1:-all}"
   case "$service" in
-    backend|frontend)
+    backend|frontend|menubar)
       touch "$(log_file "$service")"
       tail -f "$(log_file "$service")"
       ;;
     all)
-      touch "$(log_file backend)" "$(log_file frontend)"
-      tail -f "$(log_file backend)" "$(log_file frontend)"
+      touch "$(log_file backend)" "$(log_file frontend)" "$(log_file menubar)"
+      tail -f "$(log_file backend)" "$(log_file frontend)" "$(log_file menubar)"
       ;;
     *)
       printf "unknown service: %s\n" "$service" >&2

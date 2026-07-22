@@ -153,6 +153,12 @@ export const api = {
     request<AStockBundle>(`/a-stock-data/bundle/${encodeURIComponent(code)}`),
   getYFinanceQuote: (symbols: string[]) =>
     request<YFinanceQuoteResponse>(`/yfinance/quote?symbols=${encodeURIComponent(symbols.join(","))}`),
+  updateHoldingsSnapshot: (snapshot: HoldingsSnapshotRequest) =>
+    request<HoldingsSnapshot>("/holdings/snapshot", {
+      method: "POST",
+      body: JSON.stringify(snapshot),
+    }),
+  getHoldingsSnapshot: () => request<HoldingsSnapshot>("/holdings/snapshot"),
 
   // Alpha Zoo API
   listAlphas: (params: AlphaListParams = {}) => {
@@ -363,6 +369,19 @@ export interface AStockBundle {
   reports: AStockArticle[];
   news: AStockArticle[];
   announcements: AStockArticle[];
+}
+
+export interface HoldingsSnapshotRequest {
+  total_asset: number;
+  today_profit: number;
+  holding_profit: number;
+  total_cost: number;
+  has_positions: boolean;
+  source?: string;
+}
+
+export interface HoldingsSnapshot extends HoldingsSnapshotRequest {
+  updated_at: string;
 }
 
 export interface YFinanceQuote {

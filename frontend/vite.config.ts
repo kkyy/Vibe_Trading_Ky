@@ -14,6 +14,8 @@ const PROXY_PATHS = [
   "/shadow-reports",
   "/a-stock-data",
   "/yfinance",
+  "/holdings",
+  "/fund-valuation",
 ];
 
 export default defineConfig(({ mode }) => {

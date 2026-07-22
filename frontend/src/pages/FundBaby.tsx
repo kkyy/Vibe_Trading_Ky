@@ -8,6 +8,7 @@ import {
   type FundSearchResult,
   type FundSnapshot,
 } from "@/lib/fundBaby";
+import { api } from "@/lib/api";
 import { fetchStockQuote, stockId, type StockMarket, type StockQuote } from "@/lib/stockQuotes";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -632,6 +633,7 @@ function FundCard({
           <p className={cn("text-muted-foreground", compact ? "mt-0.5 text-[10px]" : "mt-1 text-xs")}>
             {isZh ? "净值日期" : "NAV date"} {fund.jzrq || "--"}
             {fund.gztime ? ` · ${isZh ? "估值时间" : "Estimate"} ${fund.gztime}` : ""}
+            {fund.dataSource ? ` · ${isZh ? "数据源" : "Source"} ${fund.dataSource}` : ""}
           </p>
         </div>
         <div className={cn("flex items-center", compact ? "gap-0.5" : "gap-1")}>
@@ -1190,6 +1192,26 @@ export function FundBaby() {
   };
   const visiblePortfolio = assetView === "stocks" ? stockPortfolio : assetView === "funds" ? fundPortfolio : portfolio;
   const holdingReturn = visiblePortfolio.totalCost > 0 ? (visiblePortfolio.holdingProfit / visiblePortfolio.totalCost) * 100 : 0;
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void api.updateHoldingsSnapshot({
+        total_asset: portfolio.totalAsset,
+        today_profit: portfolio.todayProfit,
+        holding_profit: portfolio.holdingProfit,
+        total_cost: portfolio.totalCost,
+        has_positions: portfolio.hasPositions,
+        source: "holdings-monitor",
+      }).catch(() => undefined);
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [
+    portfolio.hasPositions,
+    portfolio.holdingProfit,
+    portfolio.todayProfit,
+    portfolio.totalAsset,
+    portfolio.totalCost,
+  ]);
 
   return (
     <main className="min-h-screen overflow-auto bg-background">

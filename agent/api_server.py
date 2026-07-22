@@ -17,6 +17,8 @@ import signal
 import time
 import csv
 import uuid
+import urllib.parse
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -44,6 +46,7 @@ UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
 AGENT_DIR = Path(__file__).resolve().parent
 ENV_PATH = AGENT_DIR / ".env"
 ENV_EXAMPLE_PATH = AGENT_DIR / ".env.example"
+HOLDINGS_SNAPSHOT_PATH = SESSIONS_DIR / "holdings_snapshot.json"
 
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 _UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MB
@@ -140,6 +143,23 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="Service status")
     service: str = Field(..., description="Service name")
     timestamp: str = Field(..., description="Server timestamp")
+
+
+class HoldingsSnapshotRequest(BaseModel):
+    """Current holdings monitor totals mirrored from the frontend."""
+
+    total_asset: float = 0
+    today_profit: float = 0
+    holding_profit: float = 0
+    total_cost: float = 0
+    has_positions: bool = False
+    source: str = "holdings-monitor"
+
+
+class HoldingsSnapshotResponse(HoldingsSnapshotRequest):
+    """Stored holdings monitor snapshot."""
+
+    updated_at: str
 
 
 class AStockBundleResponse(BaseModel):
@@ -736,6 +756,142 @@ def _trusted_docker_loopback_ip(ip: ipaddress._BaseAddress) -> bool:
 def _env_shell_tools_enabled() -> bool:
     """Return whether server-side shell tools are explicitly enabled."""
     return _env_flag_enabled(_SHELL_TOOLS_ENV)
+
+
+def _read_holdings_snapshot() -> HoldingsSnapshotResponse:
+    """Return the last frontend holdings monitor snapshot."""
+    default = HoldingsSnapshotResponse(updated_at="", source="holdings-monitor")
+    try:
+        raw = json.loads(HOLDINGS_SNAPSHOT_PATH.read_text(encoding="utf-8"))
+        return HoldingsSnapshotResponse(**raw)
+    except FileNotFoundError:
+        return default
+    except Exception:
+        logger.warning("Unable to read holdings snapshot", exc_info=True)
+        return default
+
+
+def _write_holdings_snapshot(snapshot: HoldingsSnapshotRequest) -> HoldingsSnapshotResponse:
+    """Persist the current holdings monitor totals for local helpers."""
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    stored = HoldingsSnapshotResponse(
+        **snapshot.model_dump(),
+        updated_at=datetime.now().isoformat(),
+    )
+    HOLDINGS_SNAPSHOT_PATH.write_text(
+        json.dumps(stored.model_dump(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return stored
+
+
+def _fetch_json_url(url: str, timeout: float = 8.0) -> Any:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json,text/javascript,*/*",
+            "Referer": "https://fund.eastmoney.com/",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8", errors="replace"))
+
+
+def _fund_valuation_last(code: str) -> Optional[Dict[str, Any]]:
+    fields = "FCODE,SHORTNAME,GSZZL,GZTIME,GSZ,NAV,PDATE"
+    url = (
+        "https://fundcomapi.tiantianfunds.com/mm/newCore/FundValuationLast"
+        f"?FCODES={urllib.parse.quote(code)}&FIELDS={urllib.parse.quote(fields)}"
+    )
+    payload = _fetch_json_url(url)
+    if not payload.get("success") or not isinstance(payload.get("data"), list) or not payload["data"]:
+        return None
+    item = payload["data"][0]
+
+    def number(value: Any) -> Optional[float]:
+        try:
+            parsed = float(value)
+            return parsed if parsed == parsed else None
+        except (TypeError, ValueError):
+            return None
+
+    return {
+        "code": str(item.get("FCODE") or code),
+        "name": item.get("SHORTNAME"),
+        "dwjz": number(item.get("NAV")),
+        "gsz": number(item.get("GSZ")),
+        "gztime": str(item.get("GZTIME")).replace(":00", "") if item.get("GZTIME") else None,
+        "jzrq": item.get("PDATE"),
+        "gszzl": number(item.get("GSZZL")),
+        "valuationSource": "fundgz",
+        "dataSource": 1,
+    }
+
+
+def _sina_fund_valuation(code: str, source: int) -> Optional[Dict[str, Any]]:
+    callback = f"jsonp_sina_{int(time.time() * 1000)}"
+    url = (
+        "https://stock.finance.sina.com.cn/fundInfo/api/openapi.php/"
+        f"FdFundService.getEstimateNetworthPic?symbol={urllib.parse.quote(code)}&callback={callback}"
+    )
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "text/javascript,*/*",
+            "Referer": "https://finance.sina.com.cn/",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=8.0) as response:
+        text = response.read().decode("utf-8", errors="replace")
+    match = re.search(rf"{re.escape(callback)}\((.*)\)\s*$", text, re.S)
+    if not match:
+        return None
+    payload = json.loads(match.group(1))
+    networth = payload.get("result", {}).get("data", {}).get("networth")
+    if not isinstance(networth, list) or not networth:
+        return None
+    last = networth[-1]
+    nav_key = "pre_nav" if source == 2 else "pre_nav2"
+    growth_key = "growthrate" if source == 2 else "growthrate2"
+
+    def number(value: Any) -> Optional[float]:
+        try:
+            parsed = float(value)
+            return parsed if parsed == parsed else None
+        except (TypeError, ValueError):
+            return None
+
+    timeseries = []
+    seen: set[str] = set()
+    for point in networth:
+        value = number(point.get(nav_key))
+        time_value = point.get("min_time")
+        date_value = point.get("pre_date")
+        if value is None or not time_value or not date_value:
+            continue
+        key = f"{date_value} {time_value}"
+        if key in seen:
+            continue
+        seen.add(key)
+        growth_value = number(point.get(growth_key))
+        timeseries.append({
+            "time": str(time_value)[:5],
+            "value": value,
+            "growth": None if growth_value is None else growth_value * 100,
+        })
+
+    growth = number(last.get(growth_key))
+    return {
+        "code": code,
+        "gsz": number(last.get(nav_key)),
+        "gztime": f"{last.get('pre_date') or ''} {last.get('min_time') or ''}".strip() or None,
+        "gszzl": None if growth is None else growth * 100,
+        "valuationSource": f"sina_ds{source}",
+        "dataSource": source,
+        "fundValuationTimeseries": timeseries,
+    }
 
 
 def _shell_tools_enabled_for_request(request: Request) -> bool:
@@ -1468,6 +1624,51 @@ async def health_check():
         service="Vibe-Trading API",
         timestamp=datetime.now().isoformat()
     )
+
+
+@app.get("/holdings/snapshot", response_model=HoldingsSnapshotResponse, dependencies=[Depends(require_local_or_auth)])
+async def get_holdings_snapshot():
+    """Return the latest holdings monitor totals synced by the frontend."""
+    return _read_holdings_snapshot()
+
+
+@app.post("/holdings/snapshot", response_model=HoldingsSnapshotResponse, dependencies=[Depends(require_local_or_auth)])
+async def update_holdings_snapshot(snapshot: HoldingsSnapshotRequest):
+    """Store the current holdings monitor totals for local menubar helpers."""
+    return _write_holdings_snapshot(snapshot)
+
+
+@app.get("/fund-valuation/{code}", dependencies=[Depends(require_local_or_auth)])
+async def get_fund_valuation_sources(code: str):
+    """Fetch public real-time fund valuation snapshots from multiple sources."""
+    normalized = code.strip()
+    if not re.fullmatch(r"\d{6}", normalized):
+        raise HTTPException(status_code=400, detail="Fund code must be 6 digits")
+
+    def load_with_retry(name: str, loader: Any) -> tuple[str, Optional[Dict[str, Any]], str]:
+        last_error = ""
+        for attempt in range(3):
+            try:
+                value = loader()
+                if value:
+                    return name, value, ""
+            except Exception as exc:
+                last_error = str(exc)
+                if attempt < 2:
+                    time.sleep(0.2)
+        return name, None, last_error or "no data"
+
+    results = await asyncio.gather(
+        asyncio.to_thread(load_with_retry, "fundgz", lambda: _fund_valuation_last(normalized)),
+        asyncio.to_thread(load_with_retry, "sina_ds2", lambda: _sina_fund_valuation(normalized, 2)),
+        asyncio.to_thread(load_with_retry, "sina_ds3", lambda: _sina_fund_valuation(normalized, 3)),
+    )
+    sources = [value for _, value, _ in results if value]
+    errors = {name: error for name, value, error in results if not value and error}
+
+    if not sources:
+        raise HTTPException(status_code=502, detail=f"Fund valuation fetch failed: {errors}")
+    return {"code": normalized, "valuations": sources, "errors": errors}
 
 
 @app.get("/a-stock-data/quote", dependencies=[Depends(require_local_or_auth)])

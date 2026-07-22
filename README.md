@@ -427,6 +427,16 @@ cd frontend && npm install && npm run dev
 
 Open `http://localhost:5899`. The frontend proxies API calls to `localhost:8899`.
 
+**macOS menu bar holdings P&L (optional):**
+
+```bash
+# Use the same Python environment you use to run the backend.
+python -m pip install -r tools/requirements-menubar.txt
+scripts/menubar
+```
+
+When the Holdings Monitor page is open, it syncs the current total daily P&L to the local API. The menu bar helper reads that snapshot and refreshes every 10 seconds during A-share trading hours.
+
 **Production mode (single server):**
 
 ```bash
